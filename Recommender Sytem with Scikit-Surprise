@@ -1,0 +1,121 @@
+# import basic libraries
+import numpy as np 
+import pandas as pd 
+import warnings
+warnings.filterwarnings('ignore')
+
+# import suprise
+from surprise import Reader, Dataset
+from surprise.model_selection import cross_validate
+from surprise.model_selection import KFold
+from surprise.model_selection import PredefinedKFold
+from surprise import NormalPredictor
+from surprise import BaselineOnly
+from surprise import KNNBasic
+from surprise import KNNWithMeans
+from surprise import KNNBaseline
+from surprise import KNNWithZScore
+from surprise import SVD
+from surprise import SVDpp
+from surprise import NMF
+from surprise import SlopeOne
+from surprise import CoClustering
+from surprise import accuracy
+from surprise.model_selection import train_test_split ##Train-test split and the fit() method
+
+import os
+os.chdir(r'C:\Users\...\')
+
+# import data
+train = pd.read_csv()
+test = pd.read_csv()
+
+# check shape
+print("Train rows and columns : ", train.shape)
+print("Test rows and columns : ", test.shape)
+
+# check column types
+ctype = train.dtypes.reset_index()
+ctype.columns = ["Count", "Column Type"]
+ctype.groupby("Column Type").aggregate('count').reset_index()
+train.info()
+
+# display data
+train.head()
+
+# numerical data distribution
+train.describe()
+
+# categorical data distribution
+train.describe(include=['O'])
+
+# check missing values
+missing_df = train.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+#Skipping EDA and moving to training and fitting the Algorithm
+# The Reader class is used to parse a file containing ratings.
+reader = Reader()
+
+# First train an SVD algorithm on the dataset.
+data = Dataset.load_from_df(train[columns], reader) #Inpute the required features you want to train
+trainset = data.build_full_trainset() #Training done on the full trainset
+algo = SVD()
+algo.fit(trainset)
+
+# Then predict yield for all pairs (u, i) that are NOT in the training set.
+testset = trainset.build_anti_testset()
+predictions = algo.test(testset)
+
+#Another way of doing this is by using the train_test split on the trainset and then splittin into train and test and using grid serach
+trainset, testset = train_test_split(data, test_size=.25)
+param_grid = {'n_factors': [110, 120, 140, 160], 'n_epochs': [90, 100, 110], 'lr_all': [0.001, 0.003, 0.005, 0.008],
+              'reg_all': [0.08, 0.1, 0.15]}
+gs = GridSearchCV(SVD, param_grid, measures=['rmse', 'mae'], cv=3)
+gs.fit(data)
+algo = gs.best_estimator['rmse']
+print(gs.best_score['rmse'])
+print(gs.best_params['rmse'])
+cross_validate(algo, data, measures=['RMSE', 'MAE'], cv=5, verbose=True)
+
+# Use the new parameters with the train data
+algo = SVD(n_factors=160, n_epochs=100, lr_all=0.005, reg_all=0.1)
+algo.fit(trainset)
+test_pred = algo.test(testset)
+print("SVD : Test Set")
+accuracy.rmse(test_pred, verbose=True)
+
+#To get the best and worst predictions, we can  use the function derived from the creator of the surprise library
+def get_Iu(uid):
+    """ return the number of items rated by given user
+    args: 
+      uid: the id of the user
+    returns: 
+      the number of items rated by the user
+    """
+    try:
+        return len(trainset.ur[trainset.to_inner_uid(uid)])
+    except ValueError: # user was not part of the trainset
+        return 0
+    
+def get_Ui(iid):
+    """ return number of users that have rated given item
+    args:
+      iid: the raw id of the item
+    returns:
+      the number of users that have rated the item.
+    """
+    try: 
+        return len(trainset.ir[trainset.to_inner_iid(iid)])
+    except ValueError:
+        return 0
+    
+df = pd.DataFrame(test_pred, columns=['uid', 'iid', 'rui', 'est', 'details'])
+df['Iu'] = df.uid.apply(get_Iu)
+df['Ui'] = df.iid.apply(get_Ui)
+df['err'] = abs(df.est - df.rui)
+best_predictions = df.sort_values(by='err')[:10]
+worst_predictions = df.sort_values(by='err')[-10:]

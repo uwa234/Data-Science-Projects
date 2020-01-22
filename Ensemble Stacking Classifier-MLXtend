@@ -1,0 +1,141 @@
+import itertools
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import pandas as pd
+
+#MLA
+
+from sklearn.ensemble import AdaBoostClassifier, BaggingClassifier, ExtraTreesClassifier, GradientBoostingClassifier, RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB, BernoulliNB
+from sklearn.linear_model import LogisticRegression, PassiveAggressiveClassifier, RidgeClassifier, SGDClassifier, Perceptron
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC, NuSVC, LinearSVC
+from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
+from xgboost import XGBClassifier
+import lightgbm as lgb
+
+#Others
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn import datasets
+from sklearn.model_selection import cross_val_score, train_test_split
+
+#MLExtension
+from mlxtend.classifier import StackingCVClassifier
+from mlxtend.plotting import plot_learning_curves
+from mlxtend.plotting import plot_decision_regions
+
+import warnings
+warnings.filterwarnings('ignore')
+import os
+os.chdir(r'C:\Users\...\')
+
+train = pd.read_csv('train.csv')
+test = pd.read_csv('test.csv')
+
+#cleaning dataset
+for dataset in train,test:    
+    #complete missing age with median
+    dataset['Age'].fillna(dataset['Age'].median(), inplace = True)
+
+    #complete embarked with mode
+    dataset['Embarked'].fillna(dataset['Embarked'].mode()[0], inplace = True)
+
+    #complete missing fare with median
+    dataset['Fare'].fillna(dataset['Fare'].median(), inplace = True)
+
+train.Sex[train.Sex == 'male'] = 1
+train.Sex[train.Sex == 'female'] = 0
+
+test.Sex[test.Sex == 'male'] = 1
+test.Sex[test.Sex == 'female'] = 0
+
+train['Sex'] = train['Sex'].astype(int)
+test['Sex'] = test['Sex'].astype(int)
+train['Embarked'] = train['Embarked'].astype('|S')
+test['Embarked'] = test['Embarked'].astype('|S')
+
+#Feature Engineering
+train['Famsize'] = train['SibSp'] + train['Parch'] + 1
+test['Famsize'] = test['SibSp'] + test['Parch'] + 1
+
+le = LabelEncoder()
+
+train['Embarked'] = le.fit_transform(train['Embarked'])
+test['Embarked'] = le.fit_transform(test['Embarked'])
+
+# Defining Independent and Dependent Variables.
+X = train[['Pclass','Sex','Age','SibSp','Parch','Fare','Famsize']].values
+Y = train['Survived'].values
+
+#Scaling both Independent and Dependent variables
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
+
+# Splitting the dataset into the Training set and Test set
+X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size = 0.2)
+
+#Stacking with mlxtend
+#Base Learners
+alg1 = AdaBoostClassifier()
+alg2 = GradientBoostingClassifier()
+alg3 = ExtraTreesClassifier()
+alg4 = GradientBoostingClassifier()
+alg5 = RandomForestClassifier()
+alg6 = GaussianNB() 
+alg7 = BernoulliNB()
+alg8 = LogisticRegression()
+alg9 = PassiveAggressiveClassifier()
+alg10 = RidgeClassifier()
+alg11 = SGDClassifier()
+alg12 = Perceptron()
+alg13 = KNeighborsClassifier()
+alg14 = SVC( kernel = 'rbf')
+alg15 = NuSVC()
+alg16 = LinearSVC()
+alg17 = DecisionTreeClassifier()
+alg18 = ExtraTreeClassifier()
+alg19 = XGBClassifier(colsample_bytree=0.4603, gamma=0.0468, 
+                             learning_rate=0.05, max_depth=3, 
+                             min_child_weight=1.7817, n_estimators=1000,
+                             reg_alpha=0.4640, reg_lambda=0.8571,
+                             subsample=0.5213, silent=1,
+                             random_state =7, nthread = -1)
+
+alg20 = lgb.LGBMClassifier(objective='binary',num_leaves=5,
+                              learning_rate=0.05, n_estimators=720,
+                              max_bin = 55, bagging_fraction = 0.8,
+                              bagging_freq = 5, feature_fraction = 0.2319,
+                              feature_fraction_seed=9, bagging_seed=9,
+                              min_data_in_leaf =6, min_sum_hessian_in_leaf = 11)
+
+
+sclf = StackingCVClassifier(classifiers=[alg1,alg2, alg3, alg5, alg6, alg7, alg8, alg9, alg10, alg11, alg12, alg13, alg14, alg15, alg16, alg17, alg18, alg19,alg20], meta_classifier= alg1, cv=7)
+
+classifier_array = [alg1,alg2, alg3, alg5, alg6, alg7, alg8, alg9, alg10, alg11, alg12, alg13, alg14, alg15, alg16, alg17, alg18, alg19,alg20, sclf]
+
+labels = [clf.__class__.__name__ for clf in classifier_array]
+
+for clf, label in zip(classifier_array, labels):
+    
+#Fit model
+    clf.fit(X_train, y_train)
+    
+    #Predict Model
+    y_pred = clf.predict(X_test)
+    
+    #Calculate Accuracy
+    scores = accuracy_score(y_test, y_pred)
+                                             
+    print('{} Accuracy:{:.2f}%'.format(clf.__class__.__name__,scores * 100))
+
+#TMatrix of values on the hold out set
+X2 = test[['Pclass','Sex','Age','SibSp','Parch','Fare','Famsize']].values
+
+#Scaling hold out set
+X2 = scaler.fit_transform(X2)
+
+#predicting on the hol dout set 
+y_new_pred = sclf.predict(X2)

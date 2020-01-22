@@ -1,0 +1,261 @@
+# import basic libraries
+import numpy as np 
+import pandas as pd 
+import warnings
+warnings.filterwarnings('ignore')
+import pandas_profiling as pp
+
+# import plot libraries
+import seaborn as sns
+sns.set_palette('Set2')
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+# import ml libraries
+
+from sklearn.linear_model import ElasticNet, Lasso,  BayesianRidge, LassoLarsIC, LinearRegression
+from sklearn.ensemble import RandomForestRegressor,  GradientBoostingRegressor
+from sklearn.svm import LinearSVR, SVR
+from sklearn.kernel_ridge import KernelRidge
+import xgboost as xgb
+import lightgbm as lgb
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler, RobustScaler
+from sklearn.model_selection import train_test_split, cross_val_score, KFold
+from mlxtend.regressor import StackingCVRegressor
+from sklearn.pipeline import make_pipeline
+from sklearn import model_selection
+from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin, clone
+from sklearn.neural_network import MLPRegressor
+
+label = LabelEncoder()
+
+from scipy import stats
+from scipy.stats import norm, skew #for some statistics
+
+# list number of files
+import os
+os.chdir(r'C:\Users\...\)
+
+# import data
+train = pd.read_csv("train.csv")
+test = pd.read_csv("test.csv")
+
+#Save the 'Id' column
+train_ID = train['Id']
+test_ID = test['Id']
+
+#Now drop the  'Id' colum since it's unnecessary for  the prediction process.
+train.drop("Id", axis = 1, inplace = True)
+test.drop("Id", axis = 1, inplace = True)
+Y = train['SalePrice'].values # matrix of dependent variable
+
+# check shape
+print("Train rows and columns : ", train.shape)
+print("Test rows and columns : ", test.shape)
+
+# check column types
+
+ctype = train.dtypes.reset_index()
+ctype.columns = ["Count", "Column Type"]
+ctype.groupby("Column Type").aggregate('count').reset_index()
+train.info()
+
+# display data
+train.head()
+
+# numerical data distribution
+train.describe()
+
+# categorical data distribution
+train.describe(include=['O'])
+
+#Checking for Outliers
+sns.boxplot(x=train['SalePrice'])
+
+#checking and treating outliers
+fig, ax = plt.subplots(figsize=(10,8))
+ax.scatter(x = train['GrLivArea'], y = train['SalePrice'])
+plt.ylabel('SalePrice', fontsize=13)
+plt.xlabel('GrLivArea', fontsize=13)
+plt.show()
+
+#Deleting outliers
+train = train.drop(train[(train['GrLivArea']>4000) & (train['SalePrice']<300000)].index)
+
+#Check the graphic again
+fig, ax = plt.subplots(figsize=(10,8))
+ax.scatter(train['GrLivArea'], train['SalePrice'])
+plt.ylabel('SalePrice', fontsize=13)
+plt.xlabel('GrLivArea', fontsize=13)
+plt.show()
+
+sns.distplot(train['SalePrice'] , fit=norm);
+
+# Get the fitted parameters used by the function
+(mu, sigma) = norm.fit(train['SalePrice'])
+print( '\n mu = {:.2f} and sigma = {:.2f}\n'.format(mu, sigma))
+
+#Now plot the distribution
+plt.legend(['Normal dist. ($\mu=$ {:.2f} and $\sigma=$ {:.2f} )'.format(mu, sigma)],
+            loc='best')
+plt.ylabel('Frequency')
+plt.title('SalePrice distribution')
+
+#Get also the QQ-plot
+fig = plt.figure()
+res = stats.probplot(train['SalePrice'], plot=plt)
+plt.show()
+
+#We use the numpy fuction log1p which  applies log(1+x) to all elements of the column
+train["SalePrice"] = np.log1p(train["SalePrice"])
+
+#Check the new distribution 
+sns.distplot(train['SalePrice'] , fit=norm);
+
+# Get the fitted parameters used by the function
+(mu, sigma) = norm.fit(train['SalePrice'])
+print( '\n mu = {:.2f} and sigma = {:.2f}\n'.format(mu, sigma))
+
+#Now plot the distribution
+plt.legend(['Normal dist. ($\mu=$ {:.2f} and $\sigma=$ {:.2f} )'.format(mu, sigma)],
+            loc='best')
+plt.ylabel('Frequency')
+plt.title('SalePrice distribution')
+
+#Get also the QQ-plot
+fig = plt.figure()
+res = stats.probplot(train['SalePrice'], plot=plt)
+plt.show()
+
+#joning both test and train set for wrangling.
+temp = pd.concat([train,test], keys = [0,1])
+
+print("all_data size is : {}".format(temp.shape))
+
+# check missing values
+missing_df = temp.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+#Handling missing data in all columns
+for col in ('GarageType', 'GarageFinish', 'GarageQual', 'GarageCond','PoolQC','MiscFeature','Alley','Fence','FireplaceQu'):
+    temp[col] = temp[col].fillna('None')
+
+for col in ('BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'BsmtFinType2'):
+    temp[col] = temp[col].fillna('None')    
+
+for col in ('GarageYrBlt', 'GarageArea', 'GarageCars','BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF','TotalBsmtSF', 'BsmtFullBath', 'BsmtHalfBath'):
+    temp[col] = temp[col].fillna(0)
+    
+temp["MasVnrType"] = temp["MasVnrType"].fillna("None")
+temp["MasVnrArea"] = temp["MasVnrArea"].fillna(0)
+
+temp['MSZoning'] = temp['MSZoning'].fillna(temp['MSZoning'].mode()[0])
+
+temp = temp.drop(['Utilities'], axis=1)
+
+temp["Functional"] = temp["Functional"].fillna("Typ")
+
+temp['Electrical'] = temp['Electrical'].fillna(temp['Electrical'].mode()[0])
+
+temp['KitchenQual'] = temp['KitchenQual'].fillna(temp['KitchenQual'].mode()[0])
+
+temp['Exterior1st'] = temp['Exterior1st'].fillna(temp['Exterior1st'].mode()[0])
+temp['Exterior2nd'] = temp['Exterior2nd'].fillna(temp['Exterior2nd'].mode()[0])
+
+temp['SaleType'] = temp['SaleType'].fillna(temp['SaleType'].mode()[0])
+
+temp['MSSubClass'] = temp['MSSubClass'].fillna("None")
+
+temp['LotFrontage'] = temp['LotFrontage'].fillna(temp['LotFrontage'].mode()[0])
+
+temp.drop(['SalePrice'], axis=1, inplace=True)
+
+#Feature Engineering
+#MSSubClass=The building class
+temp['MSSubClass'] = temp['MSSubClass'].apply(str)
+
+
+#Changing OverallCond into a categorical variable
+temp['OverallCond'] = temp['OverallCond'].astype(str)
+
+
+#Year and month sold are transformed into categorical features.
+temp['YrSold'] = temp['YrSold'].astype(str)
+temp['MoSold'] = temp['MoSold'].astype(str)
+
+#Encd0ing all categorical columns for machine learning
+from sklearn.preprocessing import LabelEncoder
+cols = ('FireplaceQu', 'BsmtQual', 'BsmtCond', 'GarageQual', 'GarageCond', 
+        'ExterQual', 'ExterCond','HeatingQC', 'PoolQC', 'KitchenQual', 'BsmtFinType1', 
+        'BsmtFinType2', 'Functional', 'Fence', 'BsmtExposure', 'GarageFinish', 'LandSlope',
+        'LotShape', 'PavedDrive', 'Street', 'Alley', 'CentralAir', 'MSSubClass', 'OverallCond', 
+        'YrSold', 'MoSold')
+# process columns, apply LabelEncoder to categorical features
+for c in cols:
+    temp[c] = label.fit_transform(temp[c])
+        
+       
+# shape        
+print('Shape All Data: {}'.format(temp.shape))
+
+# Adding total sqfootage feature 
+temp['TotalSF'] = temp['TotalBsmtSF'] + temp['1stFlrSF'] + temp['2ndFlrSF']
+
+##One hot encoding/creating dummy varibales of encoded data 
+temp = pd.get_dummies((temp), drop_first = True)
+print(temp.shape)
+
+#Splitting the dataset
+ntrain,ntest = temp.xs(0), temp.xs(1)
+
+#Creating the matrix of independednt and dependent variables
+X = ntrain.values
+Y = train['SalePrice'].values
+
+#Splitting both X and Y into train and test set
+X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size = 0.2, random_state = 0)
+
+#Creating the objects of each regressor class and that of the ensemble regressor
+clf1 = make_pipeline(RobustScaler(), Lasso(alpha =0.0005, random_state=1))
+clf2 = make_pipeline(RobustScaler(), ElasticNet(alpha=0.0005, l1_ratio=.9, random_state=3))
+clf3 = KernelRidge(alpha=0.6, kernel='polynomial', degree=2, coef0=2.5)
+clf4 = GradientBoostingRegressor(n_estimators=3000, learning_rate=0.05,
+                                   max_depth=4, max_features='sqrt',
+                                   min_samples_leaf=15, min_samples_split=10, 
+                                   loss='huber', random_state =5)
+clf5 = xgb.XGBRegressor(colsample_bytree=0.4603, gamma=0.0468, 
+                             learning_rate=0.05, max_depth=2, 
+                             min_child_weight=1.7817, n_estimators=500,
+                             reg_alpha=0.4640, reg_lambda=0.8571,
+                             subsample=0.5213, silent=1,
+                             random_state =7, nthread = -1)
+clf6 = lgb.LGBMRegressor(objective='regression',num_leaves=5,
+                              learning_rate=0.05, n_estimators=720,
+                              max_bin = 55, bagging_fraction = 0.8,
+                              bagging_freq = 5, feature_fraction = 0.2319,
+                              feature_fraction_seed=9, bagging_seed=9,
+                              min_data_in_leaf =6, min_sum_hessian_in_leaf = 11)
+
+clf7 = SVR(kernel = 'rbf')
+clf8 = LinearRegression()
+clf9 = RandomForestRegressor(n_estimators = 1000, random_state = 0)
+clf10 = MLPRegressor()
+
+
+
+sclf = StackingCVRegressor(regressors=[clf1, clf2,clf3,clf4,clf5,clf6,clf7,clf8,clf9,clf10],
+                                                    meta_regressor=clf8,cv=5) #Stacking cross validation Regressor
+
+#Fitting the data
+sclf.fit(X_train,y_train)
+
+#Predicting the trained data on the test set
+y_pred_ense = sclf.predict(X_test)
+
+#RMSE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred_ense))
+print("RMSE: %f" % (rmse))

@@ -1,0 +1,335 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[ ]:
+
+
+# import basic libraries
+import numpy as np 
+import pandas as pd 
+import warnings
+warnings.filterwarnings('ignore')
+import pandas_profiling as pp
+
+# import plot libraries
+import seaborn as sns
+sns.set_palette('Set2')
+import matplotlib.pyplot as plt
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+# import ml libraries
+from sklearn.metrics import confusion_matrix,mean_squared_error,r2_score
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
+from sklearn.model_selection import train_test_split, cross_val_score, KFold
+from sklearn import linear_model, datasets
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.metrics import accuracy_score
+from sklearn.svm import LinearSVC, SVC,SVR
+import xgboost as xgb
+
+
+
+# categories v1, v4, v8, v9, v11, v12, v16, classLabel
+from sklearn.preprocessing import LabelEncoder
+label = LabelEncoder()
+
+# list number of files
+import os
+print(os.listdir("data"))
+
+
+# In[ ]:
+
+
+# import data
+
+from subprocess import check_output
+print(check_output(["ls", "../input/"]).decode("utf8"))
+
+train = pd.read_csv("data/train.csv")
+test = pd.read_csv("data/test.csv")
+
+
+# In[ ]:
+
+
+# check shape
+
+print("Train rows and columns : ", train.shape)
+print("Test rows and columns : ", test.shape)
+
+
+# In[ ]:
+
+
+# check column types
+
+ctype = train.dtypes.reset_index()
+ctype.columns = ["Count", "Column Type"]
+ctype.groupby("Column Type").aggregate('count').reset_index()
+
+train.info()
+
+
+# In[ ]:
+
+
+# display data
+
+train.head()
+
+
+# In[ ]:
+
+
+# numerical data distribution
+
+train.describe()
+
+
+# In[ ]:
+
+
+# categorical data distribution
+
+train.describe(include=['O'])
+
+
+# In[ ]:
+
+
+# check missing values
+missing_df = train.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[2]:
+
+
+# impute/treat missing values
+
+train['col1'] = train['col1'].fillna(train['col1'].value_counts().index[0])  # for categorical
+
+train['col2'].fillna(train['col2'].mean(), inplace=True) # for numerical (mean or median)
+    
+
+
+# In[ ]:
+
+
+# check outliers
+
+train.ix[np.abs(train.col-fmean) > (3*fstd), 'col'] # upper outliers
+train.ix[np.abs(train.col-fmean) < -(3*fstd), 'col'] # lower outliers
+
+
+# In[ ]:
+
+
+# treat outliers
+
+fmean = train.col.mean()
+fstd = train.col.std()
+train.ix[np.abs(train.col-fmean) > (3*fstd), 'col'] = fmean + (3*fstd)  # treat upper outliers
+train.ix[np.abs(train.col-fmean) < -(3*fstd), 'col'] = -(fmean + (3*fstd)) # treat lower outliers
+
+
+# In[ ]:
+
+
+# univariate analysis
+
+# histogram of numerical column
+plt.figure(figsize=(12,8))
+sns.distplot(train["num"].values, bins=10, kde=False)
+plt.xlabel('num', fontsize=12)
+plt.title("num histogram", fontsize=14)
+plt.show()
+
+# charts of categorical column
+labels = np.array(train['col'].value_counts().index)
+sizes = np.array(train['col'].value_counts())
+# pie plot for categorical column
+fig1, ax1 = plt.subplots()
+ax1.pie(sizes, labels=labels, autopct='%1.1f%%', shadow=True)
+ax1.axis('equal')
+
+# bar plot for categorical column
+fig2, ax2 = plt.subplots()
+sns.countplot("col", data=train)
+plt.show()
+
+
+# In[ ]:
+
+
+# univariate analysis 2
+
+#graph distribution of quantitative data
+plt.figure(figsize=[16,12])
+
+plt.subplot(231)
+plt.boxplot(x=data1['Fare'], showmeans = True, meanline = True)
+plt.title('Fare Boxplot')
+plt.ylabel('Fare ($)')
+
+plt.subplot(232)
+plt.boxplot(data1['Age'], showmeans = True, meanline = True)
+plt.title('Age Boxplot')
+plt.ylabel('Age (Years)')
+
+plt.subplot(233)
+plt.boxplot(data1['FamilySize'], showmeans = True, meanline = True)
+plt.title('Family Size Boxplot')
+plt.ylabel('Family Size (#)')
+
+plt.subplot(234)
+plt.hist(x = [data1[data1['Survived']==1]['Fare'], data1[data1['Survived']==0]['Fare']], 
+         stacked=True, color = ['g','r'],label = ['Survived','Dead'])
+plt.title('Fare Histogram by Survival')
+plt.xlabel('Fare ($)')
+plt.ylabel('# of Passengers')
+plt.legend()
+
+plt.subplot(235)
+plt.hist(x = [data1[data1['Survived']==1]['Age'], data1[data1['Survived']==0]['Age']], 
+         stacked=True, color = ['g','r'],label = ['Survived','Dead'])
+plt.title('Age Histogram by Survival')
+plt.xlabel('Age (Years)')
+plt.ylabel('# of Passengers')
+plt.legend()
+
+plt.subplot(236)
+plt.hist(x = [data1[data1['Survived']==1]['FamilySize'], data1[data1['Survived']==0]['FamilySize']], 
+         stacked=True, color = ['g','r'],label = ['Survived','Dead'])
+plt.title('Family Size Histogram by Survival')
+plt.xlabel('Family Size (#)')
+plt.ylabel('# of Passengers')
+plt.legend()
+
+
+# In[ ]:
+
+
+# bivariate analysis
+
+sns.barplot(x='cat1', y='cat2', data=train) # categorical vs categorical
+
+sns.violinplot(x='cat', y='num', data=train) # categorical vs numerical
+
+sns.regplot(x="num1", y="num2", data=train) # numerical vs numerical
+
+
+# In[ ]:
+
+
+# multivariate analysis 
+
+temp = train[cols_to_use]
+corrmat = temp.corr(method='spearman')
+f, ax = plt.subplots(figsize=(20, 20))
+
+sns.heatmap(corrmat, vmax=1., square=True, cmap="YlGnBu", annot=True)
+plt.title("numerical variables correlation map", fontsize=15)
+plt.show()
+
+
+# In[ ]:
+
+
+# multivariate analysis
+df.corr().style.background_gradient(cmap='coolwarm')
+
+
+# In[ ]:
+
+
+# split data
+
+y = train.target
+X = train.drop('target', axis=1, inplace=False)
+
+X_train, X_val, y_train, y_val = train_test_split(X, y,random_state = 123)
+
+
+# In[ ]:
+
+
+# feature engineering on train/valid
+
+label = LabelEncoder()
+X_train['cat'] = label.fit_transform(X_train['cat']) # for categorical data
+
+scaler = MinMaxScaler()            # for numerical data
+scaler.fit(X_train)                      
+X_train = scaler.transform(X_train)
+X_val = scaler.transform(X_val)
+
+
+# In[ ]:
+
+
+# build model on train
+
+model = linear_model.LogisticRegression(C=1e5) # RandomForestClassifier(), SVC(), RandomForestRegressor() etc
+
+model.fit(X_train, y_train)
+
+y_pred = model.predict(X_val)
+
+model.score(X_train, y_train)
+
+
+# In[ ]:
+
+
+# evaluate on valid
+
+confusion_matrix(y_val, y_pred) # for categorical target
+
+mean_squared_error(y_true, y_pred) # for numerical target
+
+
+# In[ ]:
+
+
+# k-fold cross-validation
+
+model = svm.SVC(kernel='linear', C=1)
+
+scores = cross_val_score(model, X_train, y_train, cv=5)
+
+print("Score: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+
+
+# In[ ]:
+
+
+# hyper-parameter tuning
+
+for gamma in [0.001, 0.01, 0.1, 1, 10, 100]:
+    for C in [0.001, 0.01, 0.1, 1, 10, 100]:
+        # for each combination of parameters,
+        # train an SVC
+        svm = SVC(gamma=gamma, C=C)
+        # perform cross-validation
+        scores = cross_val_score(svm, X_train, y_train, cv=5)
+        # compute mean cross-validation accuracy
+        score = np.mean(scores)
+        # if we got a better score, store the score and parameters
+        if score > best_score:
+            best_score = score
+            best_parameters = {'C': C, 'gamma': gamma}
+# rebuild a model on the combined training and validation set
+svm = SVC(**best_parameters)
+svm.fit(X_train, y_train)
+
+
+# In[ ]:
+
+
+
+

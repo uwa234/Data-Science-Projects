@@ -1,0 +1,126 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+# import basic libraries
+import numpy as np 
+import pandas as pd 
+import warnings
+warnings.filterwarnings('ignore')
+import pandas_profiling as pp
+
+# import plot libraries
+import seaborn as sns
+sns.set_palette('Set2')
+import matplotlib.pyplot as plt
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+from surprise import Reader, Dataset
+from surprise.model_selection import cross_validate
+from surprise.model_selection import KFold
+from surprise import NormalPredictor
+from surprise import BaselineOnly
+from surprise import KNNBasic
+from surprise import KNNWithMeans
+from surprise import KNNBaseline
+from surprise import SVD
+from surprise import SVDpp
+from surprise import NMF
+from surprise import SlopeOne
+from surprise import CoClustering
+from surprise import accuracy
+from surprise.model_selection import train_test_split ##Train-test split and the fit() method
+
+
+import os
+os.chdir(r'C:\Users\pokosun\Desktop\Python\Movie Lens')
+
+
+# In[2]:
+
+
+ratings = pd.read_csv('ratings.csv')
+movies = pd.read_csv('movies.csv')
+links = pd.read_csv('links.csv')
+tags = pd.read_csv('tags.csv')
+
+
+# In[3]:
+
+
+# to load dataset from pandas df, we need `load_fromm_df` method in surprise lib
+
+ratings_dict = {'itemID': list(ratings.movieId),
+                'userID': list(ratings.userId),
+                'rating': list(ratings.rating)}
+df = pd.DataFrame(ratings_dict)
+
+
+# In[4]:
+
+
+# A reader is still needed but only the rating_scale param is required.
+# The Reader class is used to parse a file containing ratings.
+reader = Reader(rating_scale=(0.5, 5.0))
+
+
+# In[5]:
+
+
+# The columns must correspond to user id, item id and ratings (in that order).
+data = Dataset.load_from_df(df[['userID', 'itemID', 'rating']], reader)
+
+
+# In[6]:
+
+
+# svd
+algo = SVD()
+# Run 5-fold cross-validation and print results
+cross_validate(algo, data, measures=['RMSE', 'MAE'], cv=5, verbose=True)
+
+# nmf
+algo1 = NMF()
+# Run 5-fold cross-validation and print results
+cross_validate(algo1, data, measures=['RMSE', 'MAE'], cv=5, verbose=True)
+
+
+# In[7]:
+
+
+# sample random trainset and testset
+# test set is made of 25% of the ratings.
+trainset, testset = train_test_split(data, test_size=.25)
+
+
+# In[8]:
+
+
+# Train the algorithm on the trainset, and predict ratings for the testset
+algo.fit(trainset)
+predictions = algo.test(testset)
+
+
+# In[9]:
+
+
+# Then compute RMSE
+accuracy.rmse(predictions)
+
+
+# In[10]:
+
+
+# Train the algorithm on the trainset, and predict ratings for the testset
+algo1.fit(trainset)
+predictions2 = algo1.test(testset)
+
+
+# In[11]:
+
+
+# Then compute RMSE
+accuracy.rmse(predictions2)
+

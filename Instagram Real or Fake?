@@ -1,0 +1,236 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+import itertools
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import pandas as pd
+
+#MLA
+
+from sklearn.ensemble import AdaBoostClassifier, BaggingClassifier, ExtraTreesClassifier, GradientBoostingClassifier, RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB, BernoulliNB
+from sklearn.linear_model import LogisticRegression, PassiveAggressiveClassifier, RidgeClassifier, SGDClassifier, Perceptron
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC, NuSVC, LinearSVC
+from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
+from xgboost import XGBClassifier
+import lightgbm as lgb
+
+#Others
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn import datasets
+from sklearn.model_selection import cross_val_score, train_test_split
+
+#MLExtension
+from mlxtend.classifier import StackingCVClassifier
+from mlxtend.plotting import plot_learning_curves
+from mlxtend.plotting import plot_decision_regions
+
+import warnings
+warnings.filterwarnings('ignore')
+import os
+
+from scipy import stats
+from scipy.stats import norm, skew #for some statistics
+
+
+# In[2]:
+
+
+os.chdir(r'C:\Users\pokosun\Desktop\Python\Instagram')
+
+
+# In[3]:
+
+
+train = pd.read_csv('train.csv')
+test = pd.read_csv('test.csv')
+
+
+# In[4]:
+
+
+# check shape
+
+print("Train rows and columns : ", train.shape)
+print("Test rows and columns : ", test.shape)
+
+
+# In[5]:
+
+
+# check column types
+
+ctype = train.dtypes.reset_index()
+ctype.columns = ["Count", "Column Type"]
+ctype.groupby("Column Type").aggregate('count').reset_index()
+
+train.info()
+
+
+# In[6]:
+
+
+# check column types
+
+ctype = test.dtypes.reset_index()
+ctype.columns = ["Count", "Column Type"]
+ctype.groupby("Column Type").aggregate('count').reset_index()
+
+test.info()
+
+
+# In[7]:
+
+
+# display data
+
+train.head()
+
+
+# In[8]:
+
+
+# display data
+
+test.head()
+
+
+# In[9]:
+
+
+# numerical data distribution
+
+train.describe()
+
+
+# In[10]:
+
+
+# check missing values
+missing_df = train.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[11]:
+
+
+# check missing values
+missing_df = test.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[12]:
+
+
+# Defining Independent and Dependent Variables.
+
+X = train.drop('fake', axis = 1, inplace = False)
+
+Y = train.fake
+
+
+# In[13]:
+
+
+#Scaling both Independent and Dependent variables
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
+
+
+# In[14]:
+
+
+# Splitting the dataset into the Training set and Test set
+X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size = 0.2)
+
+
+# In[15]:
+
+
+#Stacking
+
+
+#Base Learners
+alg1 = AdaBoostClassifier()
+alg2 = GradientBoostingClassifier()
+alg3 = ExtraTreesClassifier()
+alg4 = GradientBoostingClassifier()
+alg5 = RandomForestClassifier()
+alg6 = GaussianNB() 
+alg7 = BernoulliNB()
+alg8 = LogisticRegression()
+alg9 = PassiveAggressiveClassifier()
+alg10 = RidgeClassifier()
+alg11 = SGDClassifier()
+alg12 = Perceptron()
+alg13 = KNeighborsClassifier()
+alg14 = SVC( kernel = 'rbf')
+alg15 = NuSVC()
+alg16 = LinearSVC()
+alg17 = DecisionTreeClassifier()
+alg18 = ExtraTreeClassifier()
+alg19 = XGBClassifier(colsample_bytree=0.4603, gamma=0.0468, 
+                             learning_rate=0.05, max_depth=3, 
+                             min_child_weight=1.7817, n_estimators=1000,
+                             reg_alpha=0.4640, reg_lambda=0.8571,
+                             subsample=0.5213, silent=1,
+                             random_state =7, nthread = -1)
+
+alg20 = lgb.LGBMClassifier(objective='binary',num_leaves=5,
+                              learning_rate=0.05, n_estimators=720,
+                              max_bin = 55, bagging_fraction = 0.8,
+                              bagging_freq = 5, feature_fraction = 0.2319,
+                              feature_fraction_seed=9, bagging_seed=9,
+                              min_data_in_leaf =6, min_sum_hessian_in_leaf = 11)
+
+
+sclf = StackingCVClassifier(classifiers=[alg1,alg2, alg3, alg5, alg6, alg7, alg8, alg9, alg10, alg11, alg12, alg13, alg14, alg15, alg16, alg17, alg18, alg19,alg20], meta_classifier= alg11, cv=5)
+classifier_array = [alg1,alg2, alg3, alg5, alg6, alg7, alg8, alg9, alg10, alg11, alg12, alg13, alg14, alg15, alg16, alg17, alg18, alg19,alg20, sclf]
+
+labels = [clf.__class__.__name__ for clf in classifier_array]
+
+for clf, label in zip(classifier_array, labels):
+    
+#Fit model
+    clf.fit(X_train, y_train)
+    
+    #Predict Model
+    y_pred = clf.predict(X_test)
+    
+    #Calculate Accuracy
+    scores = accuracy_score(y_test, y_pred)
+                                             
+    print('{} Accuracy:{:.2f}%'.format(clf.__class__.__name__,scores * 100))
+
+
+# In[16]:
+
+
+X2 = test.drop('fake', axis = 1, inplace = False)
+
+
+# In[17]:
+
+
+X2 = scaler.fit_transform(X2)
+
+
+# In[18]:
+
+
+y_new_pred = sclf.predict(X2)
+

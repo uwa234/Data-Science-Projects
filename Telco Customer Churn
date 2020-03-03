@@ -1,0 +1,334 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+import pandas as pd
+
+#MLA
+
+from sklearn.ensemble import AdaBoostClassifier, BaggingClassifier, ExtraTreesClassifier, GradientBoostingClassifier, RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB, BernoulliNB
+from sklearn.linear_model import LogisticRegression, PassiveAggressiveClassifier, RidgeClassifier, SGDClassifier, Perceptron
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC, NuSVC, LinearSVC
+from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
+from xgboost import XGBClassifier
+import lightgbm as lgb
+
+#Others
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn import datasets
+from sklearn.model_selection import cross_val_score, train_test_split
+
+#MLExtension
+from mlxtend.classifier import StackingCVClassifier
+from mlxtend.plotting import plot_learning_curves
+from mlxtend.plotting import plot_decision_regions
+
+import warnings
+warnings.filterwarnings('ignore')
+import os
+
+
+# In[2]:
+
+
+os.chdir(r'C:\Users\pokosun\Desktop\Python\Kaggle\Customer Churn')
+
+
+# In[3]:
+
+
+# import data
+
+train = pd.read_csv('WA_Fn-UseC_-Telco-Customer-Churn.csv')
+
+
+# In[4]:
+
+
+# check shape
+
+print("Train rows and columns : ", train.shape)
+
+
+# In[5]:
+
+
+# check column types
+
+ctype = train.dtypes.reset_index()
+ctype.columns = ["Count", "Column Type"]
+ctype.groupby("Column Type").aggregate('count').reset_index()
+
+train.info()
+
+
+# In[6]:
+
+
+# display data
+
+train.head()
+
+
+# In[7]:
+
+
+# numerical data distribution
+
+train.describe()
+
+
+# In[8]:
+
+
+# categorical data distribution
+
+train.describe(include=['O'])
+
+
+# In[9]:
+
+
+train.StreamingMovies.values
+
+
+# In[10]:
+
+
+# check missing values
+missing_df = train.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[11]:
+
+
+train['MonthlyCharges'] = pd.to_numeric(train['MonthlyCharges'])
+
+
+# In[12]:
+
+
+train['TotalCharges'] = pd.to_numeric(train['TotalCharges'], errors = 'coerce')
+
+
+# In[13]:
+
+
+# check missing values
+missing_df = train.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[14]:
+
+
+train['TotalCharges'] = train['TotalCharges'].fillna(train['TotalCharges'].mean())
+
+
+# In[15]:
+
+
+train.Churn[train.Churn == 'Yes'] = 1
+train.Churn[train.Churn == 'No'] = 0
+
+
+# In[16]:
+
+
+train.Churn = train.Churn.astype(int)
+
+
+# In[17]:
+
+
+# check missing values
+missing_df = train.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[18]:
+
+
+train.info()
+
+
+# In[19]:
+
+
+#Checking for Outliers
+sns.boxplot(x=train['TotalCharges'])
+
+
+# In[20]:
+
+
+#Checking for Outliers
+sns.boxplot(x=train['MonthlyCharges'])
+
+
+# In[21]:
+
+
+# charts of categorical column
+labels = np.array(train['gender'].value_counts().index)
+sizes = np.array(train['gender'].value_counts())
+# pie plot for categorical column
+fig1, ax1 = plt.subplots()
+ax1.pie(sizes, labels=labels, autopct='%1.1f%%', shadow=True)
+ax1.axis('equal')
+
+
+# In[22]:
+
+
+# charts of categorical column
+labels = np.array(train['PaymentMethod'].value_counts().index)
+sizes = np.array(train['PaymentMethod'].value_counts())
+# pie plot for categorical column
+fig1, ax1 = plt.subplots()
+ax1.pie(sizes, labels=labels, autopct='%1.1f%%', shadow=True)
+ax1.axis('equal')
+
+
+# In[23]:
+
+
+# bar plot for categorical column
+fig2, ax2 = plt.subplots()
+sns.countplot("Contract", data=train)
+plt.show()
+
+
+# In[24]:
+
+
+plt.hist(x = [train[train['Churn']==1]['Contract'], train[train['Churn']==0]['Contract']], 
+         stacked=False, color = ['b','r'],label = ['Yes','No'])
+plt.title('Churn Histogram by Contract')
+plt.xlabel('Contract ($)')
+plt.ylabel('# of People')
+plt.legend()
+
+
+# In[25]:
+
+
+plt.hist(x = [train[train['Churn']==1]['gender'], train[train['Churn']==0]['gender']], 
+         stacked=False, color = ['b','r'],label = ['Yes','No'])
+plt.title('Churn Histogram by Contract')
+plt.xlabel('Gender')
+plt.ylabel('# of People')
+plt.legend()
+
+
+# In[26]:
+
+
+plt.hist(x = [train[train['Churn']==1]['tenure'], train[train['Churn']==0]['tenure']], 
+         stacked=False, color = ['b','r'],label = ['Yes','No'])
+plt.title('Churn Histogram by Contract')
+plt.xlabel('Tenure')
+plt.ylabel('# of People')
+plt.legend()
+
+
+# In[27]:
+
+
+plt.hist(x = [train[train['Churn']==1]['PaymentMethod'], train[train['Churn']==0]['PaymentMethod']], 
+         stacked=False, color = ['b','r'],label = ['Yes','No'])
+plt.title('Churn Histogram by Payment Method')
+plt.xlabel('Payment Method')
+plt.ylabel('# of People')
+plt.legend()
+
+
+# In[28]:
+
+
+plt.hist(x = [train[train['Churn']==1]['TechSupport'], train[train['Churn']==0]['TechSupport']], 
+         stacked=False, color = ['b','r'],label = ['Yes','No'])
+plt.title('Churn Histogram by Tech Support')
+plt.xlabel('Tech Support')
+plt.ylabel('# of People')
+plt.legend()
+
+
+# In[29]:
+
+
+plt.hist(x = [train[train['Churn']==1]['MonthlyCharges'], train[train['Churn']==0]['MonthlyCharges']], 
+         stacked=False, color = ['b','r'],label = ['Yes','No'])
+plt.title('Churn Histogram by Monthly Charges')
+plt.xlabel('Monthly Charges')
+plt.ylabel('# of People')
+plt.legend()
+
+
+# In[30]:
+
+
+plt.hist(x = [train[train['Churn']==1]['MultipleLines'], train[train['Churn']==0]['MultipleLines']], 
+         stacked=False, color = ['b','r'],label = ['Yes','No'])
+plt.title('Churn Histogram by Multiple Lines')
+plt.xlabel('Multiple Lines')
+plt.ylabel('# of People')
+plt.legend()
+
+
+# In[31]:
+
+
+plt.hist(x = [train[train['Churn']==1]['StreamingMovies'], train[train['Churn']==0]['StreamingMovies']], 
+         stacked=False, color = ['b','r'],label = ['Yes','No'])
+plt.title('Churn Histogram by Multiple Lines')
+plt.xlabel('Multiple Lines')
+plt.ylabel('# of People')
+plt.legend()
+
+
+# In[32]:
+
+
+label = LabelEncoder()
+
+cols = ('gender', 'Partner', 'Dependents', 'PhoneService', 'OnlineSecurity', 
+        'DeviceProtection', 'TechSupport','StreamingTV', 'StreamingMovies', 'PaperlessBilling', 'BsmtFinType1', 
+        'BsmtFinType2', 'Functional', 'Fence', 'BsmtExposure', 'GarageFinish', 'LandSlope',
+        'LotShape', 'PavedDrive', 'Street', 'Alley', 'CentralAir', 'MSSubClass', 'OverallCond', 
+        'YrSold', 'MoSold')
+# process columns, apply LabelEncoder to categorical features
+for c in cols:
+    temp[c] = label.fit_transform(temp[c])
+
+
+# In[ ]:
+
+
+# split data
+
+X = train.drop(['Churn','customerID','MultipleLines',], axis=1, inplace=False).values
+Y = train.Churn.values
+
+X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size = 0.2, random_state = 0)
+

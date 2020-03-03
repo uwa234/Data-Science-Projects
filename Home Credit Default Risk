@@ -1,0 +1,190 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+# import basic libraries
+import numpy as np 
+import pandas as pd 
+import warnings
+warnings.filterwarnings('ignore')
+import pandas_profiling as pp
+
+# import plot libraries
+import seaborn as sns
+sns.set_palette('Set2')
+import matplotlib.pyplot as plt
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+# import ml libraries
+from sklearn.metrics import confusion_matrix,mean_squared_error,r2_score,roc_auc_score
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler,StandardScaler
+from sklearn.model_selection import train_test_split, cross_val_score, KFold
+from sklearn import linear_model, datasets
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.metrics import accuracy_score
+from sklearn.svm import LinearSVC, SVC,SVR
+import xgboost as xgb
+
+label = LabelEncoder()
+
+# list number of files
+import os
+os.chdir(r'C:\Users\pokosun\Desktop\Python\Kaggle\Home_Credit')
+
+
+# In[2]:
+
+
+# List files available
+print(os.listdir("../Home_Credit/"))
+
+
+# In[3]:
+
+
+# import data
+
+train = pd.read_csv("application_train.csv")
+test = pd.read_csv("application_test.csv")
+
+
+# In[4]:
+
+
+# check shape
+
+print("Train rows and columns : ", train.shape)
+print("Test rows and columns : ", test.shape)
+
+
+# In[5]:
+
+
+# check column types
+
+ctype = train.dtypes.reset_index()
+ctype.columns = ["Count", "Column Type"]
+ctype.groupby("Column Type").aggregate('count').reset_index()
+
+train.info()
+
+
+# In[6]:
+
+
+# display data
+
+train.head()
+
+
+# In[7]:
+
+
+# numerical data distribution
+
+train.describe()
+
+
+# In[8]:
+
+
+# categorical data distribution
+
+train.describe(include=['O'])
+
+
+# In[9]:
+
+
+# check missing values
+missing_df = train.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[10]:
+
+
+# display data
+
+test.head()
+
+
+# In[11]:
+
+
+# check missing values
+missing_df = test.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[12]:
+
+
+train.TARGET.value_counts()
+
+
+# In[13]:
+
+
+temp = pd.concat([train,test], keys = [0,1])
+temp.drop(['TARGET'], axis=1, inplace=True)
+
+
+# In[14]:
+
+
+print("all_data size is : {}".format(temp.shape))
+
+
+# In[17]:
+
+
+# Label Encoding and Iterating through the columns
+le_count = 0
+
+for col in temp:
+    if temp[col].dtype == 'object':
+        # If 2 or fewer unique categories
+        if len(list(temp[col].unique())) <= 2:
+            # Train on the training data
+            label.fit_transform(temp[col])
+                      
+            # Keep track of how many columns were label encoded
+            le_count += 1
+            
+print('%d columns were label encoded.' % le_count)
+
+
+# In[18]:
+
+
+#One Hot Encoding
+
+temp = pd.get_dummies((temp), drop_first = True)
+print(temp.shape)
+
+
+# In[19]:
+
+
+# check missing values
+missing_df = temp.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[ ]:
+
+
+
+

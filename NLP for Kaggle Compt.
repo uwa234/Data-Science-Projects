@@ -1,0 +1,320 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import os
+os.chdir(r'C:\Users\pokosun\Desktop\Python\NLPkaggle')
+import seaborn as sns
+sns.set(style="white")
+sns.set(style="whitegrid", color_codes=True)
+sns.set(rc={'figure.figsize':(15,10)})
+import warnings
+warnings.filterwarnings('ignore')
+
+
+# In[2]:
+
+
+#Importing the dataset
+
+train = pd.read_csv('train.csv')
+test = pd.read_csv('test.csv')
+sub = pd.read_csv('sample_submission.csv')
+
+
+# In[3]:
+
+
+train.head()
+
+
+# In[4]:
+
+
+test.head()
+
+
+# In[5]:
+
+
+sub.head()
+
+
+# In[6]:
+
+
+# check missing values
+missing_df = train.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[7]:
+
+
+# check missing values
+missing_df = test.isnull().sum(axis=0).reset_index()
+missing_df.columns = ['column_name', 'missing_count']
+missing_df = missing_df[missing_df['missing_count']>0]
+missing_df = missing_df.sort_values(by='missing_count')
+missing_df
+
+
+# In[8]:
+
+
+train.info()
+
+
+# In[9]:
+
+
+train['keyword'].value_counts().nlargest(10).plot(kind = 'barh')
+
+
+# In[30]:
+
+
+# charts of categorical column
+labels = np.array(train['keyword'].value_counts().nlargest(10).index)
+sizes = np.array(train['keyword'].value_counts().nlargest(10))
+# pie plot for categorical column
+fig1, ax1 = plt.subplots()
+ax1.pie(sizes, labels=labels, autopct='%1.1f%%', shadow=True)
+ax1.axis('equal')
+
+
+# In[11]:
+
+
+train['location'].value_counts().nlargest(10).plot(kind = 'barh')
+
+
+# In[12]:
+
+
+train.describe(include=['O'])
+
+
+# In[13]:
+
+
+train['text'][0]
+
+
+# In[14]:
+
+
+#Cleaning the dataset/first row in the dataset
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem.porter import PorterStemmer #Libarary for getting the root of words.
+
+
+# In[15]:
+
+
+corpus  = []
+pstem = PorterStemmer()
+for i in range(train['text'].shape[0]):
+    #Remove unwanted words
+    tweet = re.sub("[^a-zA-Zhttps?://\S+|www\.\S+<.*?>\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251]", ' ', train['text'][i])
+    #Transform words to lowercase
+    tweet = tweet.lower()
+    tweet = tweet.split()
+    #Remove stopwords then Stemming it
+    tweet = [pstem.stem(word) for word in tweet if not word in set(stopwords.words('english'))]
+    tweet = ' '.join(tweet)
+    #Append cleaned tweet to corpus
+    corpus.append(tweet)
+    
+print("Corpus created successfully")
+
+
+# In[16]:
+
+
+#Create our dictionary 
+uniqueWordFrequents = {}
+for tweet in corpus:
+    for word in tweet.split():
+        if(word in uniqueWordFrequents.keys()):
+            uniqueWordFrequents[word] += 1
+        else:
+            uniqueWordFrequents[word] = 1
+            
+#Convert dictionary to dataFrame
+uniqueWordFrequents = pd.DataFrame.from_dict(uniqueWordFrequents,orient='index',columns=['Word Frequent'])
+uniqueWordFrequents.sort_values(by=['Word Frequent'], inplace=True, ascending=False)
+uniqueWordFrequents.head(10)
+
+
+# In[17]:
+
+
+uniqueWordFrequents['Word Frequent'].unique()
+
+
+# In[18]:
+
+
+uniqueWordFrequents = uniqueWordFrequents[uniqueWordFrequents['Word Frequent'] >= 20]
+print(uniqueWordFrequents.shape)
+uniqueWordFrequents
+
+
+# In[19]:
+
+
+#Creating Bag of Words/Sparse matrix of features
+from sklearn.feature_extraction.text import CountVectorizer
+cv= CountVectorizer(max_features = uniqueWordFrequents.shape[0])
+X = cv.fit_transform(corpus).toarray() #Creating our sparse matrix of features
+y = train['target'].values
+
+
+# In[20]:
+
+
+# Splitting the dataset into the Training set and Test set
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X,y, test_size = 0.2, random_state = 0)
+
+
+# In[21]:
+
+
+#MLA
+
+from sklearn.ensemble import AdaBoostClassifier, BaggingClassifier, ExtraTreesClassifier, GradientBoostingClassifier, RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB, BernoulliNB
+from sklearn.linear_model import LogisticRegression, PassiveAggressiveClassifier, RidgeClassifier, SGDClassifier, Perceptron
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC, NuSVC, LinearSVC
+from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
+from xgboost import XGBClassifier
+import lightgbm as lgb
+
+from sklearn.metrics import f1_score
+
+#MLExtension
+from mlxtend.classifier import StackingCVClassifier
+from mlxtend.plotting import plot_learning_curves
+from mlxtend.plotting import plot_decision_regions
+
+
+# In[22]:
+
+
+#Stacking
+
+
+#Base Learners
+alg1 = AdaBoostClassifier()
+alg2 = GradientBoostingClassifier()
+alg3 = ExtraTreesClassifier()
+alg4 = GradientBoostingClassifier()
+alg5 = RandomForestClassifier()
+alg6 = GaussianNB() 
+alg7 = BernoulliNB()
+alg8 = LogisticRegression()
+alg9 = PassiveAggressiveClassifier()
+alg10 = RidgeClassifier()
+alg11 = SGDClassifier()
+alg12 = Perceptron()
+alg13 = KNeighborsClassifier()
+alg14 = SVC( kernel = 'rbf')
+alg15 = NuSVC()
+alg16 = LinearSVC()
+alg17 = DecisionTreeClassifier()
+alg18 = ExtraTreeClassifier()
+alg19 = XGBClassifier(colsample_bytree=0.4603, gamma=0.0468, 
+                             learning_rate=0.05, max_depth=3, 
+                             min_child_weight=1.7817, n_estimators=1000,
+                             reg_alpha=0.4640, reg_lambda=0.8571,
+                             subsample=0.5213, silent=1,
+                             random_state =7, nthread = -1)
+
+alg20 = lgb.LGBMClassifier(objective='binary',num_leaves=5,
+                              learning_rate=0.05, n_estimators=720,
+                              max_bin = 55, bagging_fraction = 0.8,
+                              bagging_freq = 5, feature_fraction = 0.2319,
+                              feature_fraction_seed=9, bagging_seed=9,
+                              min_data_in_leaf =6, min_sum_hessian_in_leaf = 11)
+
+
+sclf = StackingCVClassifier(classifiers=[alg1,alg2, alg3, alg5, alg6, alg7, alg8, alg9, alg10, alg11, alg12, alg13, alg14, alg15, alg16, alg17, alg18, alg19,alg20], meta_classifier= alg11, cv=7)
+classifier_array = [alg1,alg2, alg3, alg5, alg6, alg7, alg8, alg9, alg10, alg11, alg12, alg13, alg14, alg15, alg16, alg17, alg18, alg19,alg20, sclf]
+
+labels = [clf.__class__.__name__ for clf in classifier_array]
+
+for clf, label in zip(classifier_array, labels):
+    
+#Fit model
+    clf.fit(X_train, y_train)
+    
+    #Predict Model
+    y_pred = clf.predict(X_test)
+    
+    #Calculate Accuracy
+    from sklearn.metrics import classification_report, f1_score , recall_score, precision_score
+    
+    
+    print(classification_report(y_test, y_pred))
+
+
+# In[23]:
+
+
+'''from sklearn.naive_bayes import GaussianNB
+classifier = GaussianNB()
+'''
+
+
+# In[24]:
+
+
+#classifier.fit(X_train, y_train)
+
+
+# In[25]:
+
+
+X2 = cv.transform(test['text'])
+
+
+# In[26]:
+
+
+y_pred2 = sclf.predict(X2.toarray())
+
+
+# In[27]:
+
+
+#from sklearn.metrics import confusion_matrix
+#cm = confusion_matrix(y_test, y_pred)
+
+
+# In[28]:
+
+
+#cm
+
+
+# In[29]:
+
+
+test['target'] = y_pred2
+
+Final_submission = test[['id','target']]
+Final_submission.to_csv('submission2.csv',index=False)
+
